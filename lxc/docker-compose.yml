@@ -1,12 +1,11 @@
-# GameBox — Docker Compose
-# Se inyecta dentro del LXC y se usa para construir y arrancar el contenedor.
-# El nombre de instancia se inyecta dinámicamente desde bootstrap.sh
+# GameBox — Docker Compose para Proxmox LXC
+# Soporta multi-instancia inyectando dinámicamente las variables desde bootstrap.sh
 ---
 services:
   gamebox:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile
       args:
         GAMEBOX_INSTANCE: ${GAMEBOX_INSTANCE:-gamebox}
     image: gamebox:${GAMEBOX_INSTANCE:-gamebox}
@@ -22,8 +21,8 @@ services:
       - XDG_RUNTIME_DIR=/run/user/1000
       - PULSE_SERVER=unix:/run/user/1000/pulse/native
     volumes:
-      - /dev/dri:/dev/dri:ro
-      - /dev/uinput:/dev/uinput
+      - /dev/dri:/dev/dri:rw
+      - /dev/uinput:/dev/uinput:rw
       - /dev/input:/dev/input:ro
       - gamebox-data-${GAMEBOX_INSTANCE:-gamebox}:/home/steam
     devices:

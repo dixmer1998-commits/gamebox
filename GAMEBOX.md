@@ -1,78 +1,82 @@
 # GameBox
 
-Streaming gaming auto-contenedorizado sobre Proxmox + Docker.
+Streaming gaming auto-contenedorizado sobre Proxmox + Docker o cualquier PC Linux.
 
 ## Visión General
 
-GameBox es un proyecto que permite convertir un servidor Proxmox con GPU AMD
-en una consola de juegos remota al estilo SteamOS. Se compone de un stack
-Docker que ejecuta Gamescope + Steam (Modo Juego) y KDE Plasma (Modo Escritorio),
-transmitiendo la imagen a cualquier dispositivo via Sunshine + Moonlight.
+GameBox es un proyecto que permite convertir un servidor Proxmox o cualquier PC con Linux y una GPU AMD en una consola de juegos remota de alto rendimiento al estilo SteamOS. Se compone de un único contenedor Docker que ejecuta **Gamescope + Steam Nativo** (Modo Juego) y **KDE Plasma** (Modo Escritorio), transmitiendo la imagen y el sonido de baja latencia a cualquier dispositivo cliente mediante **Sunshine + Moonlight**.
 
 ### Objetivo
 
-Que un usuario ejecute **un script** en su Proxmox y en minutos esté jugando
-desde cualquier dispositivo (PC, tablet, Steam Deck, móvil) con aceleración
-gráfica por hardware y una experiencia tipo SteamOS.
+Que un usuario despliegue un stack Docker unificado y en minutos esté jugando desde cualquier dispositivo (PC, tablet, Steam Deck, móvil, Apple TV) con aceleración gráfica por hardware y una experiencia de consola tipo SteamOS.
 
 ### Público objetivo
 
-Usuarios con nivel básico/medio de Linux y Docker que tienen un servidor
-Proxmox con GPU AMD y quieren usarlo para jugar sin necesidad de:
-- Tener un monitor físico conectado
-- Configurar manualmente GPU passthrough
-- Lidiar con problemas de input (teclado/ratón)
-- Mantener una VM pesada con recursos fijos
+Usuarios con GPU AMD (incluyendo hardware antiguo/medio como la arquitectura Polaris y la **RX 580**) que desean una consola en la red local sin necesidad de:
+* Tener un monitor físico conectado al servidor.
+* Configurar PCIe Passthrough exclusivo (permitiendo compartir la GPU con el host y otros contenedores).
+* Sufrir problemas de compatibilidad de periféricos (mandos, teclado y ratón).
+* Mantener una pesada máquina virtual (VM) con recursos fijos de hardware.
+
+---
 
 ## Stack Tecnológico
 
 | Componente | Elección | Motivación |
-|------------|----------|------------|
-| Hipervisor | Proxmox VE | Maduro, estable, comunidad grande |
-| Contenedor sistema | LXC privilegiado | Comparte kernel con host, recursos dinámicos, GPU compartida via bind mount |
-| Motor contenedores | Docker | Universal, fácil de usar, ecosistema enorme |
-| Base imágenes | Debian 12 (Bookworm) slim | Estable, ligero, predecible, poco mantenimiento |
-| Modo Juego | Gamescope + Steam (Flatpak) | Experiencia SteamOS real, no solo Big Picture |
-| Modo Escritorio | KDE Plasma | Completo, familiar, similar a SteamOS Desktop |
-| Streaming | Sunshine | Open source, maduro, web UI incluida |
-| Captura de video | PipeWire desde Gamescope | Baja latencia, integración nativa |
-| Codificación HW | VAAPI (AMD) | Hardware encoding sin NVIDIA |
-| Input virtual | inputtino (via Sunshine) | Soporte de teclado, ratón, gamepad |
-| Web UI | Sunshine web UI + panel Go minimalista | Gestión del servidor, pares Moonlight |
+| :--- | :--- | :--- |
+| **Hipervisor (Opcional)** | Proxmox VE 8.x | Hipervisor maduro con soporte para contenedores LXC de bajo overhead. |
+| **Contenedor Host (Opcional)**| LXC Privilegiado (Debian/Ubuntu) | Comparte el kernel con el host, recursos dinámicos y GPU compartida vía bind mounts. |
+| **Motor de Contenedores** | Docker + Compose | Universal, estándar en la industria y de fácil despliegue local o remoto. |
+| **Base de la Imagen** | **Ubuntu 24.04 LTS (Noble)** | Controladores gráficos de Mesa modernos (Mesa 24.x) necesarios para Gamescope. |
+| **Modo Juego** | **Gamescope + Steam (Nativo)** | Composición Wayland de Valve. Instalado nativamente (`i386`) para evitar bloqueos de seguridad de `bubblewrap` (Flatpak) dentro de Docker. |
+| **Modo Escritorio** | KDE Plasma | Entorno completo e idéntico al modo escritorio de la Steam Deck. |
+| **Streaming** | Sunshine v2026.x | Servidor de streaming WebRTC de latencia ultrabaja. |
+| **Codificación HW** | **VA-API (AMD)** | Hardware encoding por VA-API para soporte completo de GPUs AMD antiguas (RX 580/Polaris) sin soporte de Vulkan Video. |
+| **Captura de video** | PipeWire (Gamescope Headless) | Captura directa de framebuffer nativa y de baja latencia. |
+| **Input virtual** | **uinput (Linux nativo)** | Inyección directa de teclado, ratón y gamepads (Xbox 360) sobre `/dev/uinput` del host. |
+| **Preview web** | Python3 + FFmpeg (MJPEG) | Servidor web ultra-ligero que sirve una vista previa de la pantalla en `http://ip:48090`. |
 
-## Arquitectura
+---
+
+## Arquitectura del Sistema
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│                    Proxmox Host                               │
+│                    Linux Host / Proxmox Host                  │
 │  Drivers AMD · /dev/dri · /dev/uinput                        │
 │                                                              │
 │  ┌─────────────────────────────────────────────────────┐     │
-│  │  LXC Privilegiado "gamebox-{nombre}" (Debian 12)   │     │
+│  │  LXC Privilegiado (Si se usa Proxmox) / Host PC     │     │
 │  │  Montajes: /dev/dri, /dev/uinput, /dev/input/*      │     │
-│  │  Cgroups: uinput, evdev, render                     │     │
 │  │  IP fija: 192.168.X.Y                               │     │
 │  │                                                      │     │
 │  │  ┌───────────────────────────────────────────────┐  │     │
-│  │  │           Docker                               │  │     │
+│  │  │           Docker                              │  │     │
 │  │  │                                                │  │     │
 │  │  │  ┌─────────────────────────────────────────┐  │  │     │
-│  │  │  │  gamebox (contenedor único)              │  │  │     │
+│  │  │  │  gamebox (Contenedor Único)             │  │  │     │
 │  │  │  │                                          │  │  │     │
 │  │  │  │  ┌──────────────┐  ┌──────────────┐    │  │  │     │
 │  │  │  │  │  Game Mode   │  │ Desktop Mode │    │  │  │     │
 │  │  │  │  │              │  │              │    │  │  │     │
 │  │  │  │  │ Gamescope    │  │ KDE Plasma   │    │  │  │     │
+│  │  │  │  │ (Headless)   │  │ (Dummy Xorg) │    │  │  │     │
 │  │  │  │  │  └→ Steam    │  │              │    │  │  │     │
-│  │  │  │  │  (Flatpak)   │  │              │    │  │  │     │
+│  │  │  │  │  (Nativo)    │  │              │    │  │  │     │
 │  │  │  │  └──────┬───────┘  └──────┬───────┘    │  │  │     │
-│  │  │  │         │ PipeWire        │ PipeWire   │  │  │     │
+│  │  │  │         │ PipeWire        │ X11/XShm   │  │  │     │
 │  │  │  │         ▼                 ▼            │  │  │     │
 │  │  │  │  ┌──────────────────────────────────┐  │  │  │     │
 │  │  │  │  │         Sunshine                 │  │  │  │     │
-│  │  │  │  │  App "Juego"  → Gamescope       │  │  │  │     │
-│  │  │  │  │  App "Escritorio" → KDE         │  │  │  │     │
+│  │  │  │  │  App "Juego"      → Gamescope    │  │  │  │     │
+│  │  │  │  │  App "Escritorio" → KDE          │  │  │  │     │
 │  │  │  │  │  Web UI : http://ip:47990       │  │  │  │     │
+│  │  │  │  └──────────────────────────────────┘  │  │  │     │
+│  │  │  │                                            │  │     │
+│  │  │  │  ┌──────────────────────────────────┐  │  │  │     │
+│  │  │  │  │  Preview (ffmpeg + MJPEG)        │  │  │  │     │
+│  │  │  │  │  PipeWire → ffmpeg → MJPEG HTTP │  │  │  │     │
+│  │  │  │  │  Web UI : http://ip:48090       │  │  │  │     │
 │  │  │  │  └──────────────────────────────────┘  │  │  │     │
 │  │  │  └─────────────────────────────────────────┘  │  │     │
 │  │  └───────────────────────────────────────────────┘  │     │
@@ -83,318 +87,93 @@ Proxmox con GPU AMD y quieren usarlo para jugar sin necesidad de:
 └───────────────────────────────────────────────────────────────┘
 ```
 
+---
+
 ## Estructura del Repositorio
 
 ```
 gamebox/
 │
-├── GAMEBOX.md                   # Este archivo — guía completa del proyecto
-├── Makefile                     # Comandos de orquestación
-├── README.md                    # README público (instrucciones rápidas)
+├── GAMEBOX.md                   # Este archivo — guía técnica de arquitectura
+├── Makefile                     # Atajos de orquestación local (build, up, logs, etc.)
+├── README.md                    # README público y guía para GitHub (Docker autónomo)
+├── docker-compose.yml           # Archivo de despliegue Compose para PC Linux
 │
-├── proxmox/                     # Scripts para el host Proxmox
-│   ├── setup-host.sh            # Configura drivers AMD, IOMMU, módulos
-│   └── create-lxc.sh            # Crea LXC privilegiado con GPU bind + uinput
-│                                # Pregunta nombre de instancia (ej: "steamos", "arcade")
-│                                # Usa el nombre para: hostname LXC, nombre contenedor, IP
+├── proxmox/                     # Scripts de automatización para Proxmox
+│   ├── setup-host.sh            # Prepara el host Proxmox (módulos, IOMMU, drivers)
+│   └── create-lxc.sh            # Crea el LXC, inyecta configuraciones y sube el proyecto
 │
-├── lxc/                         # Archivos para dentro del LXC
-│   ├── bootstrap.sh             # Instala Docker + dependencias + construye imagen
-│   └── docker-compose.yml       # Stack (un solo contenedor gamebox)
+├── lxc/                         # Archivos para ejecutar dentro de Proxmox LXC
+│   ├── bootstrap.sh             # Instala Docker y ejecuta compose en el LXC
+│   └── docker-compose.yml       # Stack Compose personalizado para multi-instancia en LXC
 │
-├── docker/                      # Dockerfile del contenedor único
-│   ├── Dockerfile               # Debian 12 + Gamescope + Steam (Flatpak) + KDE + Sunshine
-│   ├── entrypoint.sh            # Arranque de gamescope-session + sunshine + pipewire
-│   └── supervisord.conf         # Supervisor de procesos (Gamescope, Sunshine, PipeWire)
+├── docker/                      # Construcción de la imagen Docker
+│   ├── Dockerfile               # Imagen de producción basada en Ubuntu 24.04
+│   ├── entrypoint.sh            # Script de arranque (dbus, PipeWire, Sunshine, Steam)
+│   └── preview/                 # Servidor de previsualización en vivo
+│       ├── server.py            # Servidor HTTP ligero en Python3
+│       └── index.html           # Página web con reproducción MJPEG
 │
-├── config/                      # Configuraciones predefinidas
-│   ├── sunshine.conf            # Sunshine optimizado para AMD + PipeWire
-│   ├── udev-rules.conf          # Reglas udev para dispositivos virtuales
-│   ├── inputtino.conf           # Configuración de input virtual
-│   └── gamescope.conf           # Parámetros de Gamescope (resolución, FPS, upscaling)
-│
-└── docs/                        # Documentación adicional
-    ├── multi-instancia.md       # Cómo crear una segunda instancia de juego
-    └── troubleshooting.md       # Problemas comunes y soluciones
+└── config/                      # Archivos de configuración compartidos
+    ├── sunshine.conf            # Ajustes optimizados para GPU AMD (VA-API) y uinput
+    ├── udev-rules.conf          # Reglas de permisos para dispositivos de entrada en el contenedor
+    └── xorg-dummy.conf          # Configuración del monitor virtual para KDE Plasma
 ```
 
-## Requisitos de Hardware
+---
 
-| Componente | Requisito Mínimo | Recomendado |
-|------------|-----------------|-------------|
-| CPU | Cualquiera con IOMMU (Intel VT-d / AMD-Vi) | 4+ cores |
-| RAM | 8 GB | 16 GB+ |
-| GPU | AMD RX 400 series o superior (GCN 4+) | AMD RX 5000+ o RX 6000+ |
-| Almacenamiento | 64 GB SSD | 256 GB+ SSD (para juegos) |
-| Red | Gigabit Ethernet | Gigabit Ethernet (WiFi 5GHz aceptable) |
-| Proxmox | VE 8.x | VE 8.x+ |
+## Decisiones de Diseño Clave
 
-### Notas sobre GPU AMD
+### 1. ¿Por qué Ubuntu 24.04 y no Debian 12 o Arch Linux?
+Debian 12 es extremadamente estable, pero sus controladores de Mesa y versiones de Gamescope son demasiado antiguos. Intentar ejecutar Gamescope en Debian 12 requiere forzar compatibilidades obsoletas de X11 o compilar enormes librerías de sistema desde fuentes. Arch Linux es rolling-release y tiende a romper los scripts de construcción del Dockerfile de forma imprevista.
+**Ubuntu 24.04 (Noble)** proporciona el balance perfecto: Mesa 24.0+ y Gamescope moderno (compatible con el flag `--headless`) de manera nativa e integrada en repositorios estables de largo soporte (LTS).
 
-- Se requiere GPU AMD con soporte VAAPI para hardware encoding.
-- La GPU **no se pasa por VFIO** — se comparte via bind mount `/dev/dri`.
-- Esto permite que el host y otros contenedores usen la GPU simultáneamente.
-- Modelos recomendados: RX 6600, RX 6700 XT, RX 6800, RX 7600, RX 7700 XT.
+### 2. ¿Por qué Steam Nativo (`i386`) y no Steam Flatpak?
+Steam Flatpak requiere ejecutar `bubblewrap` (bwrap) para aislar la aplicación. Ejecutar `bwrap` dentro de un contenedor Docker (incluso en modo privilegiado) provoca fallos críticos de seguridad y restricciones de namespaces (`seccomp`), impidiendo que Steam headless arranque bajo Gamescope.
+Instalar Steam de forma nativa activando el soporte multiarquitectura de 32 bits dentro de la imagen Docker de Ubuntu elimina por completo la doble contenedorización y garantiza un inicio instantáneo y libre de fallos de permisos.
 
-## Flujo de Instalación
+### 3. ¿Por qué inyección por `uinput` nativo en lugar de `inputtino`?
+Aunque `inputtino` es muy robusto, Sunshine v2026.x incluye soporte directo para inyectar mandos de Xbox 360, PlayStation, teclados y ratones mediante la API nativa de **uinput** del kernel de Linux. Al conceder los permisos correctos a `/dev/uinput`, evitamos sobrecargar el contenedor con compilaciones o subprocesos adicionales de `inputtino`, logrando menor latencia en las pulsaciones y mayor compatibilidad de periféricos directamente desde Moonlight.
+
+### 4. ¿Por qué forzar codificación VA-API en lugar de Vulkan Video?
+Las GPU AMD Radeon más antiguas de arquitectura Polaris (como la **RX 580**) carecen de decodificación y codificación por hardware a nivel de silicio para la nueva API *Vulkan Video*. Dado que Sunshine moderno intenta inicializar los codificadores de Vulkan de forma prioritaria, esto causaba que la RX 580 se colgara al iniciar el streaming.
+Configurando estrictamente `encoder = vaapi` y deshabilitando Vulkan Video durante el build, nos aseguramos de que Sunshine aproveche la madurez del driver `mesa-va-drivers`, transmitiendo en H.264/HEVC a 60 FPS con un rendimiento óptimo y consumo ínfimo de CPU.
+
+### 5. ¿Por qué Gamescope Headless en lugar de monitor virtual Xorg?
+Gamescope headless crea su propio compositor virtual Wayland de alto rendimiento directamente en la GPU sin requerir una pantalla física. Al no necesitar un servidor X11 pesado en ejecución (como Xorg Dummy), los juegos corren a mayor velocidad, con menor latencia y con mejor soporte para tasas de refresco variables y re-escalado inteligente de resolución.
+
+---
+
+## Flujo de Instalación (Proxmox LXC)
 
 ### Paso 1: Preparar el host Proxmox
-
+Ejecuta el script de preparación para verificar drivers e IOMMU en el host:
 ```bash
-# El script setup-host.sh:
-# 1. Instala drivers AMD (firmware-amd-graphics, mesa)
-# 2. Habilita IOMMU en GRUB (amd_iommu=on)
-# 3. Configura módulos VFIO (si se necesita passthrough completo)
-# 4. Instala dependencias (pve-headers, build-essential, etc.)
-# 5. Verifica que /dev/dri esté disponible
+sudo ./proxmox/setup-host.sh
 ```
 
 ### Paso 2: Crear el LXC
-
+Ejecuta el script interactivo. Te pedirá el nombre de la instancia (ej: `retro`), la RAM, CPU, disco e IP, y creará el LXC privilegiado **sin destruir o sobrescribir la configuración del contenedor**:
 ```bash
-# El script create-lxc.sh:
-#
-# 1. PREGUNTA: "¿Nombre de esta instancia?" (ej: "steamos", "arcade", "retro")
-#    - Se usa como: hostname del LXC, nombre del contenedor Docker, 
-#      nombre en Moonlight, subdominio DNS, etc.
-#    - Si el usuario crea otra instancia, debe elegir otro nombre.
-#
-# 2. Descarga template Debian 12 de Proxmox (si no existe)
-# 3. Crea LXC con:
-#    - Nombre: gamebox-{nombre}
-#    - Privilegiado (necesario para /dev/uinput)
-#    - Bind mounts de /dev/dri, /dev/uinput, /dev/input/*
-#    - Cgroup allows para uinput (c 10:223 rwm)
-#    - Cgroup allows para DRI (c 226:* rwm)
-#    - Cgroup allows para input (c 13:* rwm)
-#    - Acceso a /sys (necesario para udev)
-# 4. Asigna recursos (CPU, RAM, swap) — pregunta si default está bien
-# 5. Asigna IP fija (DHCP reservado o estática)
-# 6. Inicia el LXC y copia bootstrap.sh + docker-compose.yml
+sudo ./proxmox/create-lxc.sh
 ```
+*(Este script empaqueta todo el directorio del proyecto en un tarball, lo transfiere al LXC y lo extrae automáticamente en `/root/gamebox/`)*.
 
-### Paso 3: Bootstrap dentro del LXC
-
+### Paso 3: Lanzar el Bootstrap en el LXC
+Ingresa al contenedor LXC e inicia la instalación automática:
 ```bash
-# El script bootstrap.sh (se ejecuta dentro del LXC):
-# 1. Instala Docker (via script oficial get.docker.com)
-# 2. Configura Docker para usar AMD GPU
-# 3. Crea red Docker gamebox-net
-# 4. Ejecuta docker-compose up -d
+pct enter <LXCID>
+/root/gamebox/lxc/bootstrap.sh
 ```
+*(El bootstrap instalará Docker y levantará el stack unificado mediante Docker Compose, usando exactamente las mismas imágenes y configuraciones de producción que el despliegue local).*
 
-### Paso 4: Usar
-
-```bash
-# 1. Abre Moonlight en tu cliente
-# 2. Añade servidor (IP del Proxmox o del LXC)
-# 3. Introduce el PIN de Sunshine (web UI :47990)
-# 4. Selecciona "Game Mode" o "Desktop"
-# 5. ¡A jugar!
-```
-
-## Problemas Conocidos y Soluciones
-
-### 1. Teclado/ratón no funcionan en Sunshine
-
-**Causa:** El contenedor no tiene acceso a `/dev/uinput`.
-
-**Solución (automatizada en create-lxc.sh):**
-```bash
-# Bind mount en la config del LXC:
-lxc.mount.entry: /dev/uinput dev/uinput none bind,optional,create=file 0 0
-lxc.cgroup2.devices.allow: c 10:223 rwm
-```
-
-### 2. Cursor invisible en streaming
-
-**Causa:** El display virtual no tiene plano de cursor.
-
-**Solución:** Usar Gamescope con `--cursor` y configurar Sunshine para
-usar cursor software.
-
-### 3. Sin dispositivo de renderizado AMD
-
-**Causa:** `/dev/dri/renderD128` no está montado en el LXC.
-
-**Solución:**
-```bash
-lxc.mount.entry: /dev/dri dev/dri none bind,optional,create=dir 0 0
-lxc.cgroup2.devices.allow: c 226:* rwm
-```
-
-### 4. Sunshine no captura la pantalla
-
-**Causa:** PipeWire no está corriendo o Gamescope no expone su salida.
-
-**Solución:**
-- Asegurar que PipeWire se inicia antes que Sunshine
-- Gamescope debe ejecutarse con `--headless --pipewire`
-
-### 5. Bajo rendimiento en encoding
-
-**Causa:** VAAPI no está usando la GPU correcta.
-
-**Solución:** Verificar que el dispositivo de renderizado correcto
-esté disponible y configurar Sunshine para usar VAAPI.
-
-## Roadmap
-
-### Fase 1 — Estructura Base (actual)
-
-- [x] Directorio del proyecto creado
-- [x] Este archivo GAMEBOX.md creado
-- [x] `proxmox/setup-host.sh` — Script de preparación del host
-- [x] `proxmox/create-lxc.sh` — Script de creación del LXC (pregunta nombre instancia)
-- [x] `lxc/bootstrap.sh` — Script de bootstrap
-- [x] `lxc/docker-compose.yml` — Stack Docker
-- [x] `docker/Dockerfile` — Contenedor único (Gamescope + Steam + KDE + Sunshine)
-- [x] `docker/entrypoint.sh` — Arranque de servicios
-- [x] `docker/supervisord.conf` — Supervisor de procesos
-- [x] `config/sunshine.conf` — Config base
-- [x] `config/udev-rules.conf` — Reglas udev
-- [x] `config/inputtino.conf` — Config input
-
-### Fase 2 — Funcionalidad Completa
-
-- [ ] Integración Sunshine + Gamescope + PipeWire funcional
-- [ ] Modo Escritorio (KDE Plasma) como segunda app en Sunshine
-- [ ] Testeo con Moonlight (input, video, audio)
-
-### Fase 3 — Pulido
-
-- [ ] Documentación completa (README, troubleshooting, multi-instancia)
-- [ ] Panel web minimalista (estado, QR, pairing)
-- [ ] Testeo en diferentes GPUs AMD
-- [ ] Optimización de rendimiento
-- [ ] Script todo-en-uno (`curl | bash`)
-
-### Fase 4 — Release
-
-- [ ] Repositorio público
-- [ ] Guía de contribución
-
-## Decisiones de Diseño
-
-Cada decisión importante documentada para que cualquier IA que retome el
-proyecto entienda el razonamiento sin tener que cuestionarlo.
-
-### ¿Por qué Debian 12 y no Arch Linux?
-
-Arch tiene paquetes más frescos (Gamescope más reciente, drivers más nuevos)
-pero es rolling release. En un Dockerfile, las imágenes de Arch se rompen
-con frecuencia porque los paquetes se actualizan constantemente. Debian 12
-es predecible: una vez que funciona, sigue funcionando. Para un usuario
-básico/medio, la estabilidad es prioritaria.
-
-### ¿Por qué LXC y no VM?
-
-- LXC comparte el kernel del host → los recursos (RAM, CPU) no están
-  reservados fijamente, el LXC usa lo que necesita del pool del host.
-- GPU AMD se puede compartir via bind mount de `/dev/dri`, no necesita
-  PCIe passthrough completo (que reservaría la GPU para una sola VM).
-- Menos overhead que KVM.
-- Docker funciona nativamente dentro de LXC.
-
-### ¿Por qué Sunshine y no Wolf?
-
-Wolf es el servidor de streaming de Games On Whales. Es más moderno y
-tiene mejor soporte multi-usuario, pero:
-- No necesitamos multi-usuario (1 LXC = 1 instancia de juego)
-- Wolf añade complejidad innecesaria para un solo usuario
-- Sunshine es más simple, más documentado y tiene web UI propia
-- Sunshine soporta PipeWire capture desde Gamescope
-
-### ¿Por qué un solo contenedor Docker en lugar de múltiples (GOW)?
-
-GameBox prioriza la simplicidad sobre la modularidad:
-- Un solo contenedor con Gamescope + Steam + KDE + Sunshine + PipeWire
-- Gestionado por supervisor (supervisord) para mantener todo corriendo
-- El usuario solo interactúa con Moonlight → Sunshine → Gamescope/Steam
-- Si se necesita más aislamiento, se crea otro LXC independiente
-
-### ¿Por qué Steam via Flatpak y no nativo?
-
-Flatpak proporciona aislamiento y no contamina el sistema base con
-dependencias de Steam. Además, Flatpak recibe actualizaciones regulares
-y funciona bien en contenedores. Steam nativo requeriría bibliotecas de
-32 bits y podria generar conflictos con el sistema base mínimo.
-
-### ¿Por qué Gamescope headless + PipeWire y no KMS/DRM directo?
-
-KMS/DRM requiere que el proceso sea DRM master, lo cual es problemático
-cuando la GPU está compartida (bind mount en LXC). Gamescope en modo
-headless + PipeWire permite capturar el framebuffer sin tomar control
-exclusivo de la GPU.
-
-### ¿Por qué no multi-usuario (Wolf/GOW)?
-
-El usuario dueño del proyecto decidió explícitamente que no necesita
-multi-usuario. La filosofía es: **un LXC = una instancia de juego**.
-
-Si quiere otra instancia (ej: una para juegos AAA y otra para emuladores
-retro), crea otro LXC ejecutando el script de nuevo con otro nombre.
-Esto simplifica enormemente la arquitectura:
-- No orquestación de sesiones
-- No balanceo entre usuarios
-- Cada instancia es independiente y aislada
-- Se puede eliminar sin afectar a otras
-
-### ¿Por qué el script pregunta un nombre de instancia?
-
-Cuando el usuario ejecuta `create-lxc.sh`, el script pregunta:
-
-```
-> ¿Nombre de esta instancia? (ej: steamos, arcade, retro)
-```
-
-Este nombre se usa para:
-- **Hostname del LXC**: `gamebox-steamos`, `gamebox-arcade`
-- **Nombre del contenedor Docker**: `gamebox-steamos`
-- **Nombre en Moonlight**: Aparece como "GameBox - steamos"
-- **IP**: Asigna IP fija con el nombre como referencia
-- **Red**: Facilita gestionar múltiples instancias enrutando a cada LXC
-
-Si el usuario quiere otra instancia, ejecuta el script otra vez con
-un nombre diferente.
-
-### ¿Por qué no dockur/windows?
-
-dockur/windows ejecuta Windows en QEMU dentro de Docker. Sigue siendo
-una VM con recursos fijos (RAM, CPU, disco asignados). No ofrece la
-flexibilidad de recursos dinámicos que busca el usuario. Además, el
-GPU passthrough a Docker es experimental y problemático.
+---
 
 ## Regla Fundamental para Cualquier IA
 
 **Este documento debe mantenerse siempre actualizado.**
 
-Cada vez que una IA (o persona) trabaje en este proyecto y realice cualquier
-cambio —añadir un archivo, modificar la arquitectura, cambiar una decisión
-de diseño, alterar el flujo de instalación— **debe actualizar este documento
-para reflejarlo**.
-
-Reglas concretas:
-- Si añades un nuevo directorio o archivo, actualiza la sección "Estructura del Repositorio".
-- Si cambias una tecnología del stack, actualiza la tabla "Stack Tecnológico" y la sección "Decisiones de Diseño" explicando el motivo del cambio.
-- Si modificas el flujo de instalación, actualiza los pasos en "Flujo de Instalación".
-- Si descubres un problema nuevo, añádelo a "Problemas Conocidos y Soluciones".
-- Si completas una fase del roadmap, marcala como [x].
-- Si cambia la arquitectura, actualiza el diagrama ASCII.
-
-**Un documento desactualizado es peor que ningún documento.** Si una IA
-futura encuentra información incorrecta aquí, tomará malas decisiones.
-
-Cuando termines tu sesión de trabajo, verifica que GAMEBOX.md refleje
-todo lo que hiciste.
-
-## Referencias
-
-- [Games on Whales](https://games-on-whales.github.io/) — Inspiración original
-- [Wolf](https://github.com/games-on-whales/wolf) — Streaming server multi-usuario
-- [GOW](https://github.com/games-on-whales/gow) — Docker images gaming
-- [Sunshine](https://github.com/LizardByte/Sunshine) — Streaming server
-- [Moonlight](https://moonlight-stream.org/) — Cliente de streaming
-- [dockur/windows](https://github.com/dockur/windows) — Windows en Docker (alternativa descartada)
-- [Bazzite](https://bazzite.gg/) — SO gaming basado en Fedora (inspiración de UX)
-- [Gamescope](https://github.com/ValveSoftware/gamescope) — Compositor de Valve
+Cada vez que una IA (o desarrollador) trabaje en este repositorio y realice cualquier modificación en el código, configuraciones, flujos de instalación o dependencias:
+1. Actualiza la estructura del repositorio si hay archivos nuevos o eliminados.
+2. Actualiza la tabla del Stack Tecnológico y la sección de Decisiones de Diseño si cambian las dependencias o enfoques de software.
+3. Actualiza el Roadmap marcando las fases completadas.
