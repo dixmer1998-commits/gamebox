@@ -1,0 +1,40 @@
+# GameBox — Docker Compose
+# Se inyecta dentro del LXC y se usa para construir y arrancar el contenedor.
+# El nombre de instancia se inyecta dinámicamente desde bootstrap.sh
+---
+services:
+  gamebox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        GAMEBOX_INSTANCE: ${GAMEBOX_INSTANCE:-gamebox}
+    image: gamebox:${GAMEBOX_INSTANCE:-gamebox}
+    container_name: gamebox-${GAMEBOX_INSTANCE:-gamebox}
+    hostname: gamebox-${GAMEBOX_INSTANCE:-gamebox}
+    privileged: true
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - INSTANCE_NAME=${GAMEBOX_INSTANCE:-gamebox}
+      - TZ=${TZ:-UTC}
+      - DISPLAY=:0
+      - XDG_RUNTIME_DIR=/run/user/1000
+      - PULSE_SERVER=unix:/run/user/1000/pulse/native
+    volumes:
+      - /dev/dri:/dev/dri:ro
+      - /dev/uinput:/dev/uinput
+      - /dev/input:/dev/input:ro
+      - gamebox-data-${GAMEBOX_INSTANCE:-gamebox}:/home/steam
+    devices:
+      - /dev/dri
+      - /dev/uinput
+      - /dev/input
+    cap_add:
+      - SYS_ADMIN
+      - SYS_PTRACE
+      - NET_ADMIN
+      - SYS_NICE
+
+volumes:
+  gamebox-data-${GAMEBOX_INSTANCE:-gamebox}:
