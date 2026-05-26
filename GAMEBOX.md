@@ -169,6 +169,34 @@ pct enter <LXCID>
 
 ---
 
+## Dependencias de Compilación de Sunshine
+
+Sunshine v2026.x se compila desde fuente dentro del Dockerfile. Las siguientes dependencias extras fueron necesarias sobre Ubuntu 24.04, identificadas iterativamente durante el build:
+
+| Dependencia | Paquete / Fuente | Propósito |
+| :--- | :--- | :--- |
+| XCB XFixes | `libxcb-xfixes0-dev` | Captura X11 vía XCB (`x11grab.cpp`) |
+| GBM | `libgbm-dev` | Buffer management de gráficos para Wayland (`wayland.cpp`) |
+| libcap | `libcap-dev` | Capacidades POSIX (SO_PRIORITY, etc.) |
+| PipeWire | `libpipewire-0.3-dev` | Captura de pantalla por PipeWire |
+| libnotify | `libnotify-dev` | Notificaciones del sistema tray |
+| AppIndicator | `libayatana-appindicator3-dev` | Indicador del system tray |
+| Python pip | `python3-pip` | Scripts de build (con `PIP_BREAK_SYSTEM_PACKAGES=1`) |
+| Doxygen | `≥1.10` desde binarios oficiales | Doxyconfig (submodulo de `tray`) exige versión ≥1.10, Ubuntu 24.04 solo provee 1.9.8 |
+| Node.js | `≥20.12` desde NodeSource 22.x | `@vitejs/plugin-vue` usa `crypto.hash` (no disponible en Node 18) |
+| Graphviz | `graphviz` | `dot` requerido por doxyconfig |
+
+### Problemas de Compilación Resueltos
+
+1. **Python externally-managed**: Ubuntu 24.04 bloquea `pip install` fuera de virtualenv. Solución: `PIP_BREAK_SYSTEM_PACKAGES=1`.
+2. **Doxygen ≥ 1.10**: Doxyconfig requiere doxygen ≥ 1.10 pero Ubuntu 24.04 empaqueta 1.9.8. Solución: descargar binario estático desde doxygen.nl.
+3. **Node.js 18 sin `crypto.hash`**: `@vitejs/plugin-vue` usa `crypto.hash` (Node ≥20.12). Solución: NodeSource setup_22.x que reemplaza Node 18.
+4. **Falta `gbm.h`**: Wayland grab requiere GBM. Solución: `libgbm-dev`.
+5. **Falta `xcb/xfixes.h`**: x11grab requiere XCB XFixes. Solución: `libxcb-xfixes0-dev`.
+6. **Falta `libcap-dev`**: Necesario para capacidades POSIX en socket.
+7. **Falta `libpipewire-0.3-dev`**: PipeWire grab requiere el header `pipewire/pipewire.h`.
+8. **Falta `libnotify-dev` y `libayatana-appindicator3-dev`**: System tray de tray.c requiere ambos.
+
 ## Regla Fundamental para Cualquier IA
 
 **Este documento debe mantenerse siempre actualizado.**
@@ -177,3 +205,28 @@ Cada vez que una IA (o desarrollador) trabaje en este repositorio y realice cual
 1. Actualiza la estructura del repositorio si hay archivos nuevos o eliminados.
 2. Actualiza la tabla del Stack Tecnológico y la sección de Decisiones de Diseño si cambian las dependencias o enfoques de software.
 3. Actualiza el Roadmap marcando las fases completadas.
+
+---
+
+## Roadmap
+
+### Fase 1 — Infraestructura Base (Completada)
+- [x] Dockerfile con Ubuntu 24.04, Steam nativo, Gamescope (PPA), KDE Plasma, Sunshine compilado desde fuente
+- [x] Dependencias de compilación completas
+- [x] FFmpeg pre-compilado integrado
+
+### Fase 2 — Streaming y Captura (Completada)
+- [x] Sunshine configurado con VA-API para AMD (RX 580/Polaris)
+- [x] PipeWire para captura de pantalla
+- [x] System tray con AppIndicator
+- [x] Preview web MJPEG con FFmpeg + Python
+
+### Fase 3 — Modo Juego (Pendiente)
+- [ ] Verificar que Gamescope headless inicie Steam correctamente
+- [ ] Configurar apps de Sunshine: "Juego" → Gamescope + Steam, "Escritorio" → KDE Plasma
+- [ ] Probar inyección de mandos vía uinput
+
+### Fase 4 — Despliegue y Documentación (Pendiente)
+- [ ] Probar en Proxmox LXC con GPU AMD real
+- [ ] Agregar perfiles de Moonlight y guías de conexión remota
+- [ ] Documentar scripts de instalación y troubleshooting

@@ -62,10 +62,13 @@ RUN apt-get update -qq && apt-get install -y -qq \
     xwayland \
     && rm -rf /var/lib/apt/lists/*
 
-# ── Gamescope (desde repos oficiales de Ubuntu 24.04) ──
-RUN apt-get update -qq && apt-get install -y -qq \
-    gamescope \
-    && rm -rf /var/lib/apt/lists/*
+# ── Gamescope (desde PPA para Ubuntu 24.04) ──
+RUN apt-get update -qq && \
+    apt-get install -y -qq software-properties-common && \
+    add-apt-repository -y ppa:3v1n0/gamescope && \
+    apt-get update -qq && \
+    apt-get install -y -qq gamescope && \
+    rm -rf /var/lib/apt/lists/*
 
 # ── Steam Nativo (Instalación limpia de 32/64 bits) ──
 # Habilitar soporte multiarquitectura i386 para los binarios de 32 bits de Steam/juegos
@@ -105,8 +108,10 @@ RUN apt-get update -qq && apt-get install -y -qq \
     libavformat-dev \
     libswscale-dev \
     libx11-dev \
+    libxcb-xfixes0-dev \
     libxfixes-dev \
     libxrandr-dev \
+    libgbm-dev \
     libcurl4-openssl-dev \
     libssl-dev \
     libminiupnpc-dev \
@@ -115,8 +120,24 @@ RUN apt-get update -qq && apt-get install -y -qq \
     nlohmann-json3-dev \
     libglx0 \
     libnuma1 \
-    nodejs \
-    npm \
+    libcap-dev \
+    libpipewire-0.3-dev \
+    libnotify-dev \
+    libayatana-appindicator3-dev \
+    graphviz \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# doxygen >= 1.10 requerido por doxyconfig (submodulo de tray)
+RUN curl -sqL -o /tmp/doxygen.tar.gz \
+    "https://www.doxygen.nl/files/doxygen-1.12.0.linux.bin.tar.gz" \
+    && tar xzf /tmp/doxygen.tar.gz -C /tmp \
+    && mv /tmp/doxygen-1.12.0/bin/doxygen /usr/local/bin/doxygen \
+    && rm -rf /tmp/doxygen.tar.gz /tmp/doxygen-1.12.0
+
+# Node.js >= 20.12 requerido por @vitejs/plugin-vue (crypto.hash)
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y -qq nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Descargar FFmpeg pre-compilado (build-deps) antes de cmake usando curl (arreglado wget bug)
@@ -133,7 +154,7 @@ RUN git clone --depth=1 --branch=v2026.516.143833 \
     && git submodule init \
     && git -c submodule.third-party/build-deps.update=none \
        submodule update --init --depth=1 --recursive \
-    && cmake -B build \
+    && PIP_BREAK_SYSTEM_PACKAGES=1 cmake -B build \
         -DCMAKE_BUILD_TYPE=Release \
         -DSUNSHINE_BUILD_HOME=OFF \
         -DSUNSHINE_BUILD_DOCS=OFF \
