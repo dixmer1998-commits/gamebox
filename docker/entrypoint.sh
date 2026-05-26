@@ -47,6 +47,8 @@ if wait_for_wayland; then
     echo "[OK] labwc en ${WAYLAND_DISPLAY}"
     # libwayland-client rechaza conexiones si el socket es de otro usuario
     chown steam:steam "${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}" "${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}.lock" 2>/dev/null || true
+    # Gamescope XWayland necesita crear sockets en /tmp/.X11-unix
+    chown steam:steam /tmp/.X11-unix 2>/dev/null || true
 else
     echo "[FAIL] labwc — /tmp/labwc.log"
 fi

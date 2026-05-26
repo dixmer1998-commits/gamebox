@@ -36,6 +36,7 @@ RUN dnf install -y \
 # ── PipeWire ──
 RUN dnf install -y \
     pipewire pipewire-pulseaudio pipewire-utils wireplumber \
+    pulseaudio-utils \
     && dnf clean all
 
 # ── Steam ──

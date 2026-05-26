@@ -428,6 +428,27 @@ VAProfileH264High: VAEntrypointEncSlice ← ausente
 - **Verificación**: Ingresar PIN en Web UI, confirmar `{"status": true}`. Recargar Web UI, re-ingresar PIN — no debe crashear.
 - **Estado**: Resuelto (pendiente rebuild y test).
 
+### R10 — Gamescope XWayland: `No display available` por permisos de `/tmp/.X11-unix`
+
+**Síntoma**: Gamescope crashea al iniciar. `pgrep` muestra `[gamescope] <defunct>`. Steam nunca arranca. En Moonlight se ve pantalla negra con cursor.
+
+```
+[gamescope] [Error] [xwayland/sockets.c:64] Failed to bind socket @/tmp/.X11-unix/X0: Address already in use
+[gamescope] [Error] [xwayland/sockets.c:64] Failed to bind socket /tmp/.X11-unix/X2: Permission denied
+[gamescope] [Error] [xwayland/sockets.c:64] Failed to bind socket /tmp/.X11-unix/X3: Permission denied
+...
+[gamescope] [Error] [xwayland/sockets.c:217] No display available in the first 33
+```
+
+- **Causa**: `/tmp/.X11-unix` pertenece a `root:root` con permisos `0755`. Gamescope corre como usuario `steam` y su XWayland interno necesita crear sockets de display en ese directorio. El socket abstracto X0 ya está ocupado (por labwc u otro proceso), y X2–X32 fallan con "Permission denied" porque el usuario `steam` no puede escribir en el directorio.
+- **Impacto**: Gamescope se convierte en zombie → Steam nunca arranca → Sunshine captura el escritorio vacío de labwc (fondo negro). El input (táctil/ratón) tampoco funciona porque no hay superficie de Gamescope que reciba los eventos.
+- **Fix**: Agregar `chown steam:steam /tmp/.X11-unix` en `entrypoint.sh` después de que labwc arranque y antes de lanzar Gamescope. Esto permite que Gamescope cree sus sockets X11 en X2+.
+- **Cascadas conocidas**:
+  - Gamescope zombie → Steam ausente → pantalla negra
+  - Gamescope zombie → sin superficie → input no funciona
+  - `pactl` faltante (`pulseaudio-utils` no instalado) → null sink no creado → `pa_simple_new() failed: Invalid argument` en Sunshine
+- **Estado**: Pendiente de fix.
+
 ---
 
 ## Regla de Diagnóstico
@@ -524,11 +545,15 @@ Cada vez que una IA o desarrollador trabaje en este repositorio y realice modifi
 - [x] Fix: gamescope --backend wayland + socket chown (R6)
 - [x] Fix: WAYLAND_DISPLAY default wayland-1 → wayland-0 en docker-compose.yml
 - [x] Fix: std::prev(map_id_sess.end()) revertido a std::begin
+- [x] Fix: permisos /tmp/.X11-unix para Gamescope XWayland (R10 — entrypoint.sh)
+- [x] Fix: instalar pulseaudio-utils (pactl) en Dockerfile
+- [x] Test: pairing Moonlight PIN vía web UI (R9 verificado en binary)
 
-### Fase 5 — Próximos Pasos (Pendiente)
+### Fase 5 — Rendimiento y Estabilidad (Pendiente)
+- [ ] **Rebuild + test: Gamescope/Steam (R10 + pulseaudio-utils)**
+- [ ] Verificar input táctil desde Moonlight (celular)
+- [ ] Verificar audio en stream (null sink + Sunshine)
 - [ ] Probar en Proxmox LXC con GPU AMD real
-- [ ] **Rebuild + test pairing Moonlight (PIN vía web UI)**
-- [ ] Probar streaming real (video + audio + input)
 - [ ] Agregar modo escritorio (KDE Plasma opcional)
 - [ ] Decky Loader integrado
 - [ ] Agregar perfiles de Moonlight y guías de conexión remota
