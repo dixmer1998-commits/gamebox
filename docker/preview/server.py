@@ -71,13 +71,13 @@ class PreviewHandler(http.server.BaseHTTPRequestHandler):
                 self.end_headers()
                 return
             global ffmpeg_proc
-            self.send_response(200)
-            self.send_header("Content-type", "multipart/x-mixed-replace; boundary=ffmpeg")
-            self.send_header("Cache-Control", "no-cache")
-            self.send_header("Connection", "close")
-            self.end_headers()
-
             try:
+                self.send_response(200)
+                self.send_header("Content-type", "multipart/x-mixed-replace; boundary=ffmpeg")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Connection", "close")
+                self.end_headers()
+
                 ffmpeg_proc = subprocess.Popen(
                     [FFMPEG_PATH,
                      "-f", "x11grab",

@@ -76,17 +76,11 @@ SUNSHINE_APPS_JSON='{
   "apps": [
     {
       "name": "🎮 Modo Juego (Steam)",
-      "cmd": "gamescope --backend x11 -f -W 1920 -H 1080 -r 60 --steam -- steam -steamos -pipewire -fulldesktopres -gamepadui",
-      "prep-cmd": [
-        {"do": "pkill -f startplasma-x11 2>/dev/null || true", "undo": ""}
-      ]
+      "cmd": "gamescope --backend x11 -f -W 1920 -H 1080 -r 60 --steam -- steam -steamos -pipewire -fulldesktopres -gamepadui"
     },
     {
       "name": "🖥️ Modo Escritorio (KDE)",
-      "cmd": "startplasma-x11",
-      "prep-cmd": [
-        {"do": "pkill -f gamescope 2>/dev/null || true", "undo": ""}
-      ]
+      "cmd": "startplasma-x11"
     }
   ]
 }'
