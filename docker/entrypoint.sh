@@ -53,17 +53,7 @@ rm -f /tmp/.X*-lock /tmp/.X11-unix/X* 2>/dev/null || true
 X "${DISPLAY}" -config /etc/X11/xorg.conf.d/00-dummy.conf &>/tmp/xorg.log &
 sleep 2
 
-# ── 4. Iniciar KDE Plasma en modo escritorio ──
-echo "[OK] Iniciando KDE Plasma en ${DISPLAY}..."
-su - steam -c "
-    export DISPLAY=${DISPLAY}
-    export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}
-    export DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS}
-    startplasma-x11 &>/tmp/plasma.log &
-" 2>/dev/null || true
-sleep 3
-
-# ── 5. Iniciar PipeWire y WirePlumber (Captura) ──
+# ── 4. Iniciar PipeWire y WirePlumber (Captura) ──
 echo "[OK] Iniciando PipeWire y WirePlumber..."
 su - steam -c "
     export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}
@@ -74,27 +64,7 @@ su - steam -c "
 " 2>/dev/null || true
 sleep 2
 
-# ── 6. Iniciar Gamescope Headless (Modo Juego permanente) ──
-# Crea un compositor virtual para la preview web y para Sunshine.
-echo "[OK] Iniciando Gamescope..."
-GAMESCOPE_WIDTH="${GAMESCOPE_WIDTH:-1920}"
-GAMESCOPE_HEIGHT="${GAMESCOPE_HEIGHT:-1080}"
-su - steam -c "
-    export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}
-    export DISPLAY=${DISPLAY}
-    if [[ \"${AUTO_STEAM:-false}\" == \"true\" ]]; then
-        gamescope --backend headless --steam -- \
-            steam -steamos -pipewire -fulldesktopres -gamepadui \
-            &>/tmp/gamescope.log &
-    else
-        gamescope --backend headless \
-            -W ${GAMESCOPE_WIDTH} -H ${GAMESCOPE_HEIGHT} -r 60 \
-            &>/tmp/gamescope.log &
-    fi
-" 2>/dev/null || true
-sleep 2
-
-# ── 7. Preparar configuración de Sunshine ──
+# ── 5. Preparar configuración de Sunshine ──
 echo "[OK] Preparando configuración de Sunshine..."
 mkdir -p /home/steam/.config/sunshine
 cp /etc/sunshine.conf /home/steam/.config/sunshine/sunshine.conf 2>/dev/null || true
@@ -106,14 +76,17 @@ SUNSHINE_APPS_JSON='{
   "apps": [
     {
       "name": "🎮 Modo Juego (Steam)",
-      "cmd": "gamescope --backend headless --steam -- steam -steamos -pipewire -fulldesktopres -gamepadui",
-      "exclude-display": true,
-      "output-name": "gamescope"
+      "cmd": "gamescope --backend x11 -f -W 1920 -H 1080 -r 60 --steam -- steam -steamos -pipewire -fulldesktopres -gamepadui",
+      "prep-cmd": [
+        {"do": "pkill -f startplasma-x11 2>/dev/null || true", "undo": ""}
+      ]
     },
     {
       "name": "🖥️ Modo Escritorio (KDE)",
       "cmd": "startplasma-x11",
-      "exclude-display": false
+      "prep-cmd": [
+        {"do": "pkill -f gamescope 2>/dev/null || true", "undo": ""}
+      ]
     }
   ]
 }'
@@ -121,7 +94,7 @@ echo "${SUNSHINE_APPS_JSON}" > /home/steam/.config/sunshine/apps.json
 echo "${SUNSHINE_APPS_JSON}" > /usr/local/assets/apps.json
 chown steam:steam /home/steam/.config/sunshine/apps.json
 
-# ── 8. Iniciar Sunshine ──
+# ── 6. Iniciar Sunshine ──
 echo "[OK] Iniciando Sunshine Server..."
 su - steam -c "
     export DISPLAY=${DISPLAY}
@@ -132,13 +105,13 @@ su - steam -c "
 " 2>/dev/null || true
 sleep 2
 
-# ── 9. Iniciar Servidor de Vista Previa (MJPEG) ──
+# ── 7. Iniciar Servidor de Vista Previa (MJPEG) ──
 echo "[OK] Iniciando Preview Server (puerto 48090)..."
 PREVIEW_PORT="${PREVIEW_PORT:-48090}"
 nohup python3 /app/preview/server.py &>/tmp/preview-server.log &
 sleep 1
 
-# ── 10. Mostrar Resumen de Estado ──
+# ── 8. Mostrar Resumen de Estado ──
 HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
 echo ""
 echo "=================================================="
@@ -155,8 +128,8 @@ echo "  3. Selecciona 'Modo Juego' para Steam o 'Modo Escritorio'."
 echo "=================================================="
 echo ""
 
-# ── 11. Lanzamiento Automático (Opcional) ──
-echo "[OK] AUTO_STEAM=${AUTO_STEAM:-false} — Gamescope ya se inició en el paso 6."
+# ── 9. Información ──
+echo "[OK] AUTO_STEAM=${AUTO_STEAM:-false}"
 
 # Mantener vivo el contenedor inspeccionando los logs de Sunshine
 echo "[OK] Contenedor activo. Monitoreando Sunshine..."

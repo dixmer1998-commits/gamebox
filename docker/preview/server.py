@@ -6,6 +6,7 @@
 import http.server
 import subprocess
 import threading
+import socketserver
 import os
 import signal
 import json
@@ -38,11 +39,12 @@ server_status = {
 }
 
 ffmpeg_proc = None
+ffmpeg_lock = threading.Lock()
 
 def get_status():
     """Actualiza el estado del servidor"""
     server_status["gamescope_running"] = (
-        subprocess.run(["pgrep", "-f", "gamescope"], capture_output=True).returncode == 0
+        subprocess.run(["pgrep", "-x", "gamescope"], capture_output=True).returncode == 0
     )
     server_status["sunshine_running"] = (
         subprocess.run(["pgrep", "-x", "sunshine"], capture_output=True).returncode == 0
@@ -64,7 +66,10 @@ class PreviewHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(b"<h1>GameBox Preview</h1><p>Error loading index.html</p>")
         
         elif self.path == "/preview":
-            # Stream MJPEG desde ffmpeg
+            if not ffmpeg_lock.acquire(blocking=False):
+                self.send_response(429)
+                self.end_headers()
+                return
             global ffmpeg_proc
             self.send_response(200)
             self.send_header("Content-type", "multipart/x-mixed-replace; boundary=ffmpeg")
@@ -101,6 +106,7 @@ class PreviewHandler(http.server.BaseHTTPRequestHandler):
                 if ffmpeg_proc:
                     ffmpeg_proc.kill()
                     ffmpeg_proc = None
+                ffmpeg_lock.release()
         
         elif self.path == "/status":
             self.send_response(200)
@@ -126,7 +132,7 @@ def main():
     print(f"[Preview] Servidor iniciado en puerto {PORT}")
     print(f"[Preview] X11 grab display: {DISPLAY}")
     
-    server = http.server.HTTPServer(("0.0.0.0", PORT), PreviewHandler)
+    server = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), PreviewHandler)
     
     def shutdown(sig, frame):
         print("[Preview] Cerrando servidor...")
