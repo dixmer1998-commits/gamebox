@@ -166,7 +166,7 @@ RUN git clone --depth=1 --branch=v2026.516.143833 \
         -DFFMPEG_PREPARED_BINARIES=/tmp/ffmpeg/ffmpeg \
     && cmake --build build -j$(nproc) \
     && cmake --install build \
-    && rm -rf /tmp/sunshine /tmp/ffmpeg
+    && rm -rf /tmp/sunshine
 
 # ── Crear usuario steam (video, audio, input, render) ──
 RUN useradd -m -G video,audio,input,render,kvm steam \

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # GameBox — Preview Server
-# Sirve el stream MJPEG desde ffmpeg capturando PipeWire
+# Sirve el stream MJPEG desde ffmpeg capturando X11 :10
 # y una página HTML con la preview + estado.
 
 import http.server
@@ -13,8 +13,20 @@ import time
 
 PORT = int(os.environ.get("PREVIEW_PORT", "48090"))
 FFMPEG_PATH = os.environ.get("FFMPEG_PATH", "ffmpeg")
-PIPEWIRE_INPUT = os.environ.get("PIPEWIRE_INPUT", "pipewire-0")
+DISPLAY = os.environ.get("DISPLAY", ":10")
 INSTANCE_NAME = os.environ.get("INSTANCE_NAME", "gamebox")
+
+def get_host_ip():
+    try:
+        result = subprocess.run(
+            ["hostname", "-I"], capture_output=True, text=True, timeout=3
+        )
+        ip = result.stdout.strip().split()[0]
+        if ip:
+            return ip
+    except:
+        pass
+    return "localhost"
 
 # Estado del servidor
 server_status = {
@@ -27,21 +39,11 @@ server_status = {
 
 ffmpeg_proc = None
 
-def get_pipewire_nodes():
-    """Detecta nodos PipeWire activos (para detectar Gamescope)"""
-    try:
-        result = subprocess.run(
-            ["pw-cli", "list-objects", "Node"],
-            capture_output=True, text=True, timeout=3
-        )
-        return result.stdout
-    except:
-        return ""
-
 def get_status():
     """Actualiza el estado del servidor"""
-    pw_nodes = get_pipewire_nodes()
-    server_status["gamescope_running"] = "gamescope" in pw_nodes.lower() or "Steam" in pw_nodes
+    server_status["gamescope_running"] = (
+        subprocess.run(["pgrep", "-f", "gamescope"], capture_output=True).returncode == 0
+    )
     server_status["sunshine_running"] = (
         subprocess.run(["pgrep", "-x", "sunshine"], capture_output=True).returncode == 0
     )
@@ -73,8 +75,9 @@ class PreviewHandler(http.server.BaseHTTPRequestHandler):
             try:
                 ffmpeg_proc = subprocess.Popen(
                     [FFMPEG_PATH,
-                     "-f", "pipewire",
-                     "-i", PIPEWIRE_INPUT,
+                     "-f", "x11grab",
+                     "-video_size", "1024x768",
+                     "-i", DISPLAY,
                      "-f", "mpjpeg",
                      "-q:v", "5",
                      "-update", "1",
@@ -107,9 +110,9 @@ class PreviewHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(get_status()).encode())
         
         elif self.path == "/sunshine":
-            # Proxy simple al estado de Sunshine
+            host_ip = get_host_ip()
             self.send_response(302)
-            self.send_header("Location", "http://localhost:47990")
+            self.send_header("Location", f"https://{host_ip}:47990")
             self.end_headers()
         
         else:
@@ -121,7 +124,7 @@ class PreviewHandler(http.server.BaseHTTPRequestHandler):
 
 def main():
     print(f"[Preview] Servidor iniciado en puerto {PORT}")
-    print(f"[Preview] PipeWire input: {PIPEWIRE_INPUT}")
+    print(f"[Preview] X11 grab display: {DISPLAY}")
     
     server = http.server.HTTPServer(("0.0.0.0", PORT), PreviewHandler)
     
