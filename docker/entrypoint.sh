@@ -78,7 +78,7 @@ SUNSHINE_APPS_JSON='{
   "apps": [
     {
       "name": "🎮 Modo Juego (Steam)",
-      "cmd": "gamescope --backend x11 -f -W 1920 -H 1080 -r 60 --steam -- steam -steamos -pipewire -fulldesktopres -gamepadui"
+      "cmd": "/home/steam/.local/share/Steam/steam.sh -steamos -pipewire -fulldesktopres -gamepadui"
     },
     {
       "name": "🖥️ Modo Escritorio (KDE)",
