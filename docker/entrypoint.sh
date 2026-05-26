@@ -18,13 +18,19 @@ echo "============================================"
 
 export INSTANCE_NAME="${INSTANCE_NAME:-gamebox}"
 export TZ="${TZ:-UTC}"
-export DISPLAY="${DISPLAY:-:0}"
+export DISPLAY="${DISPLAY:-:10}"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/1000}"
 export PULSE_SERVER="${PULSE_SERVER:-unix:${XDG_RUNTIME_DIR}/pulse/native}"
 export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-offscreen}"
 
 # ── 1. Asegurar permisos de /home/steam y directorios de runtime ──
 echo "[OK] Configurando permisos de usuario y volumen..."
+
+# Fix device permissions: los GIDs de grupos del host (video=983, kvm=992, etc.)
+# no coinciden con los del contenedor al usar bind mounts con network_mode: host
+chmod 666 /dev/dri/card* 2>/dev/null || true
+chmod 666 /dev/uinput 2>/dev/null || true
+
 chown -R steam:steam /home/steam || true
 
 mkdir -p "${XDG_RUNTIME_DIR}"
@@ -41,8 +47,10 @@ export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
 su - steam -c "dbus-daemon --session --address=${DBUS_SESSION_BUS_ADDRESS} --fork --nopidfile &>/dev/null" || true
 
 # ── 3. Iniciar Xorg Dummy (Display Virtual para KDE) ──
-echo "[OK] Iniciando display virtual Xorg Dummy (:0)..."
-X :0 -config /etc/X11/xorg.conf.d/00-dummy.conf &>/tmp/xorg.log &
+echo "[OK] Iniciando display virtual Xorg Dummy (${DISPLAY})..."
+pkill -9 X 2>/dev/null || true
+rm -f /tmp/.X*-lock /tmp/.X11-unix/X* 2>/dev/null || true
+X "${DISPLAY}" -config /etc/X11/xorg.conf.d/00-dummy.conf &>/tmp/xorg.log &
 sleep 2
 
 # ── 4. Iniciar PipeWire y WirePlumber (Captura) ──

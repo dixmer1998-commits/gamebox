@@ -15,7 +15,7 @@ services:
     environment:
       - INSTANCE_NAME=gamebox
       - TZ=America/Bogota          # Cambia a tu zona horaria local
-      - DISPLAY=:0
+      - DISPLAY=:10
       - XDG_RUNTIME_DIR=/run/user/1000
       - PULSE_SERVER=unix:/run/user/1000/pulse/native
       - AUTO_STEAM=false           # Cambia a 'true' para iniciar Steam nativo al arrancar el contenedor

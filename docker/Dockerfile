@@ -169,7 +169,7 @@ RUN git clone --depth=1 --branch=v2026.516.143833 \
     && rm -rf /tmp/sunshine /tmp/ffmpeg
 
 # ── Crear usuario steam (video, audio, input, render) ──
-RUN useradd -m -G video,audio,input,render steam \
+RUN useradd -m -G video,audio,input,render,kvm steam \
     && echo "steam ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # ── ffmpeg (para preview MJPEG) ──
