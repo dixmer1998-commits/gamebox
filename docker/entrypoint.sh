@@ -72,7 +72,9 @@ chown -R steam:steam /home/steam/.config
 
 # Configurar aplicaciones en Sunshine (Modo Juego con Steam Nativo y Modo Escritorio con KDE)
 SUNSHINE_APPS_JSON='{
-  "env": {},
+  "env": {
+    "DISPLAY": ":10"
+  },
   "apps": [
     {
       "name": "🎮 Modo Juego (Steam)",
