@@ -67,7 +67,7 @@ class PreviewHandler(http.server.BaseHTTPRequestHandler):
             # Stream MJPEG desde ffmpeg
             global ffmpeg_proc
             self.send_response(200)
-            self.send_header("Content-type", "multipart/x-mixed-replace; boundary=frame")
+            self.send_header("Content-type", "multipart/x-mixed-replace; boundary=ffmpeg")
             self.send_header("Cache-Control", "no-cache")
             self.send_header("Connection", "close")
             self.end_headers()
@@ -80,7 +80,7 @@ class PreviewHandler(http.server.BaseHTTPRequestHandler):
                      "-i", DISPLAY,
                      "-f", "mpjpeg",
                      "-q:v", "5",
-                     "-update", "1",
+                     "-r", "15",
                      "-"],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.DEVNULL

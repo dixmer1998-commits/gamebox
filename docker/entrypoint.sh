@@ -97,16 +97,12 @@ sleep 2
 # ── 7. Preparar configuración de Sunshine ──
 echo "[OK] Preparando configuración de Sunshine..."
 mkdir -p /home/steam/.config/sunshine
-if [[ ! -f /home/steam/.config/sunshine/sunshine.conf ]]; then
-    cp /etc/sunshine.conf /home/steam/.config/sunshine/sunshine.conf 2>/dev/null || true
-fi
+cp /etc/sunshine.conf /home/steam/.config/sunshine/sunshine.conf 2>/dev/null || true
 chown -R steam:steam /home/steam/.config
 
 # Configurar aplicaciones en Sunshine (Modo Juego con Steam Nativo y Modo Escritorio con KDE)
-SUNSHINE_APPS="/home/steam/.config/sunshine/apps.json"
-if [[ ! -f "${SUNSHINE_APPS}" ]]; then
-    cat > "${SUNSHINE_APPS}" << EOF
-{
+SUNSHINE_APPS_JSON='{
+  "env": {},
   "apps": [
     {
       "name": "🎮 Modo Juego (Steam)",
@@ -116,14 +112,14 @@ if [[ ! -f "${SUNSHINE_APPS}" ]]; then
     },
     {
       "name": "🖥️ Modo Escritorio (KDE)",
-      "cmd": "startplasma-x11 &",
+      "cmd": "startplasma-x11",
       "exclude-display": false
     }
   ]
-}
-EOF
-    chown steam:steam "${SUNSHINE_APPS}"
-fi
+}'
+echo "${SUNSHINE_APPS_JSON}" > /home/steam/.config/sunshine/apps.json
+echo "${SUNSHINE_APPS_JSON}" > /usr/local/assets/apps.json
+chown steam:steam /home/steam/.config/sunshine/apps.json
 
 # ── 8. Iniciar Sunshine ──
 echo "[OK] Iniciando Sunshine Server..."
