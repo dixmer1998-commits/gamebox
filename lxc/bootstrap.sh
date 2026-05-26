@@ -66,13 +66,8 @@ fi
 echo ""
 echo -e "${YELLOW}[PASO 4/4] Levantando GameBox mediante Docker Compose...${NC}"
 
-# Cambiar al directorio del proyecto extraído
 cd /root/gamebox
 
-# Sobrescribir el compose del root por el compose optimizado para LXC
-cp lxc/docker-compose.yml docker-compose.yml
-
-# Detener contenedor anterior si existe
 export GAMEBOX_INSTANCE="${GAMEBOX_INSTANCE}"
 docker compose down || true
 

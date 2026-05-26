@@ -38,7 +38,6 @@ logs:
 status:
 	@docker ps -f name=gamebox
 	@echo ""
-	@echo "Preview Web disponible en: http://localhost:48090"
 	@echo "Sunshine Web UI disponible en: http://localhost:47990"
 
 shell:

@@ -1,160 +1,84 @@
-# GameBox — Dockerfile (Refactorizado para Docker Autónomo)
-# Contenedor único con:
-#   - Gamescope + Steam Nativo (Modo Juego)
-#   - KDE Plasma (Modo Escritorio)
-#   - Sunshine (Streaming con soporte VA-API forzado para AMD Polaris/RX 580)
-#   - PipeWire (Captura de video/audio)
-#
-# Base: Ubuntu 24.04 (Noble Numbat) para Mesa drivers actualizados
+# GameBox — Dockerfile
+# SteamOS en Docker con Fedora + Gamescope + Sunshine + Wayland
+# GPU AMD con VA-API
 
-FROM ubuntu:24.04
+FROM fedora:42
 
-ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
-ENV DISPLAY=:0
 ENV XDG_RUNTIME_DIR=/run/user/1000
+ENV WLR_BACKENDS=headless
+ENV WLR_RENDERER=gles2
 
 # ── Sistema base ──
-RUN apt-get update -qq && apt-get install -y -qq \
-    curl \
-    ca-certificates \
-    gnupg \
-    sudo \
-    dbus \
-    systemd \
-    nano \
-    htop \
-    procps \
-    neofetch \
-    python3 \
-    && rm -rf /var/lib/apt/lists/*
+RUN dnf install -y \
+    curl ca-certificates gnupg sudo nano htop procps-ng python3 \
+    && dnf clean all
 
-# ── PipeWire (captura de video/audio) ──
-RUN apt-get update -qq && apt-get install -y -qq \
-    pipewire \
-    pipewire-pulse \
-    libspa-0.2-bluetooth \
-    wireplumber \
-    && rm -rf /var/lib/apt/lists/*
+# ── RPM Fusion (ffmpeg, steam, VA-API) ──
+RUN dnf install -y \
+    https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
+    https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm \
+    && dnf clean all
 
-# ── AMD / VAAPI y Vulkan ──
-RUN apt-get update -qq && apt-get install -y -qq \
-    mesa-va-drivers \
-    mesa-vulkan-drivers \
-    libva-drm2 \
-    libva2 \
-    vainfo \
-    vulkan-tools \
-    && rm -rf /var/lib/apt/lists/*
+# ── Mesa / VA-API / Vulkan ──
+RUN dnf install -y \
+    mesa-va-drivers mesa-va-drivers-freeworld mesa-vulkan-drivers mesa-dri-drivers \
+    libva libva-utils vainfo vulkan-tools \
+    && dnf clean all
 
-# ── Dependencias gráficas, Wayland y Xwayland ──
-RUN apt-get update -qq && apt-get install -y -qq \
-    libgl1 \
-    libegl1 \
-    libgles2 \
-    libxkbcommon0 \
-    libwayland-client0 \
-    libwayland-server0 \
-    libwayland-egl1 \
-    libinput10 \
-    libseat1 \
-    libdrm2 \
-    xwayland \
-    && rm -rf /var/lib/apt/lists/*
+# ── Wayland + Compositor ──
+RUN dnf install -y \
+    labwc gamescope \
+    wayland-devel wayland-protocols-devel \
+    xdg-desktop-portal-wlr \
+    && dnf clean all
 
-# ── Gamescope (desde PPA para Ubuntu 24.04) ──
-RUN apt-get update -qq && \
-    apt-get install -y -qq software-properties-common && \
-    add-apt-repository -y ppa:3v1n0/gamescope && \
-    apt-get update -qq && \
-    apt-get install -y -qq gamescope && \
-    rm -rf /var/lib/apt/lists/*
+# ── PipeWire ──
+RUN dnf install -y \
+    pipewire pipewire-pulseaudio pipewire-utils wireplumber \
+    && dnf clean all
 
-# ── Steam Nativo (Instalación limpia de 32/64 bits) ──
-# Habilitar soporte multiarquitectura i386 para los binarios de 32 bits de Steam/juegos
-RUN dpkg --add-architecture i386 && \
-    apt-get update -qq && \
-    apt-get install -y -qq software-properties-common && \
-    add-apt-repository -y multiverse && \
-    apt-get update -qq && \
-    # Pre-aceptar la licencia de Steam para evitar bloqueos interactivos en el build
-    echo "steam steam/question select I AGREE" | debconf-set-selections && \
-    echo "steam steam/license note ''" | debconf-set-selections && \
-    # Descargar e instalar el paquete oficial de Steam de Valve (resuelve udev rules y dependencias)
-    curl -sqL -o /tmp/steam.deb https://media.steampowered.com/client/installer/steam.deb && \
-    apt-get install -y -qq /tmp/steam.deb && \
-    rm /tmp/steam.deb && \
-    rm -rf /var/lib/apt/lists/*
+# ── Steam ──
+RUN dnf install -y steam && dnf clean all
 
-# ── KDE Plasma (escritorio) ──
-RUN apt-get update -qq && apt-get install -y -qq \
-    kde-plasma-desktop \
-    xserver-xorg-core \
-    xserver-xorg-video-dummy \
-    xinit \
-    && rm -rf /var/lib/apt/lists/*
+# ── Dependencias de compilación de Sunshine ──
+RUN dnf install -y \
+    gcc gcc-c++ make cmake git \
+    boost-devel pulseaudio-libs-devel opus-devel libevdev-devel \
+    xorg-x11-server-Xwayland \
+    libX11-devel libxcb-devel libXfixes-devel libXrandr-devel \
+    mesa-libgbm-devel libcurl-devel openssl-devel miniupnpc-devel \
+    libva-devel libdrm-devel nlohmann-json-devel libcap-devel \
+    pipewire-devel libnotify-devel libappindicator-gtk3-devel \
+    numactl-devel libstdc++-static \
+    graphviz doxygen \
+    && dnf clean all
 
-# ── Compilación de Sunshine (v2026.516.143833) ──
-RUN apt-get update -qq && apt-get install -y -qq \
-    build-essential \
-    cmake \
-    git \
-    libboost-all-dev \
-    libpulse-dev \
-    libopus-dev \
-    libevdev-dev \
-    libavcodec-dev \
-    libavutil-dev \
-    libavformat-dev \
-    libswscale-dev \
-    libx11-dev \
-    libxcb-xfixes0-dev \
-    libxfixes-dev \
-    libxrandr-dev \
-    libgbm-dev \
-    libcurl4-openssl-dev \
-    libssl-dev \
-    libminiupnpc-dev \
-    libva-dev \
-    libdrm-dev \
-    nlohmann-json3-dev \
-    libglx0 \
-    libnuma1 \
-    libcap-dev \
-    libpipewire-0.3-dev \
-    libnotify-dev \
-    libayatana-appindicator3-dev \
-    graphviz \
-    python3-pip \
-    && rm -rf /var/lib/apt/lists/*
+# ── Node.js (para UI de Sunshine) ──
+RUN dnf install -y nodejs && dnf clean all
 
-# doxygen >= 1.10 requerido por doxyconfig (submodulo de tray)
-RUN curl -sqL -o /tmp/doxygen.tar.gz \
-    "https://www.doxygen.nl/files/doxygen-1.12.0.linux.bin.tar.gz" \
-    && tar xzf /tmp/doxygen.tar.gz -C /tmp \
-    && mv /tmp/doxygen-1.12.0/bin/doxygen /usr/local/bin/doxygen \
-    && rm -rf /tmp/doxygen.tar.gz /tmp/doxygen-1.12.0
-
-# Node.js >= 20.12 requerido por @vitejs/plugin-vue (crypto.hash)
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y -qq nodejs \
-    && rm -rf /var/lib/apt/lists/*
-
-# Descargar FFmpeg pre-compilado (build-deps) antes de cmake usando curl (arreglado wget bug)
+# ── FFmpeg pre-compilado (build-deps de Sunshine) ──
 RUN curl -sqL -o /tmp/ffmpeg.tar.gz \
     "https://github.com/LizardByte/build-deps/releases/download/v2026.516.30821/Linux-x86_64-ffmpeg.tar.gz" \
     && mkdir -p /tmp/ffmpeg \
     && tar xzf /tmp/ffmpeg.tar.gz -C /tmp/ffmpeg \
     && rm /tmp/ffmpeg.tar.gz
 
-# Clonar Sunshine con submodulos y construir deshabilitando Vulkan Video e inyecciones de CUDA
+# ── Compilar Sunshine ──
 RUN git clone --depth=1 --branch=v2026.516.143833 \
     https://github.com/LizardByte/Sunshine.git /tmp/sunshine \
     && cd /tmp/sunshine \
     && git submodule init \
     && git -c submodule.third-party/build-deps.update=none \
        submodule update --init --depth=1 --recursive \
-    && PIP_BREAK_SYSTEM_PACKAGES=1 cmake -B build \
+    && sed -i 's/lifetime::debug_trap();/BOOST_LOG(fatal) << "[GameBox] Session cleanup timeout - continuing";/' src/stream.cpp \
+    && sed -i 's/boost::asio::ssl::verify_peer | boost::asio::ssl::verify_fail_if_no_peer_cert | boost::asio::ssl::verify_client_once/boost::asio::ssl::verify_peer | boost::asio::ssl::verify_client_once/' src/nvhttp.cpp \
+    && sed -i 's/<< "unknown -- denied"sv;/<< "unknown -- continuing without client cert"sv;/' src/nvhttp.cpp \
+    && sed -i '/continuing without client cert/{n;s/return 0;/return 1;/}' src/nvhttp.cpp \
+    && sed -i 's|auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;|map_id_sess.erase(sess.client.uniqueID);\n        auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;|' src/nvhttp.cpp \
+    && python3 -c "content = open('src/nvhttp.cpp').read(); content = content.replace('    auto &sess = std::begin(map_id_sess)->second;\n    getservercert(sess, tree, pin);\n    sess.client.name = name;\n\n    // response to the request for pin\n    std::ostringstream data;\n    pt::write_xml(data, tree);\n\n    auto &async_response = sess.async_insert_pin.response;\n    if (async_response.has_left() && async_response.left()) {\n      async_response.left()->write(data.str());\n    } else if (async_response.has_right() && async_response.right()) {\n      async_response.right()->write(data.str());\n    } else {\n      return false;\n    }\n\n    // reset async_response\n    async_response = std::decay_t<decltype(async_response.left())>();\n    // response to the current request\n    return true;', '    auto sess_it = std::begin(map_id_sess);\n    auto unique_id = sess_it->first;\n\n    // Reset last_phase to allow retries if getservercert was already called\n    sess_it->second.last_phase = PAIR_PHASE::NONE;\n\n    // Move async_response out before getservercert to avoid dangling ref\n    auto async_response = std::move(sess_it->second.async_insert_pin.response);\n\n    getservercert(sess_it->second, tree, pin);\n\n    // Session may have been removed by fail_pair -> remove_session\n    auto it = map_id_sess.find(unique_id);\n    if (it != map_id_sess.end()) {\n      it->second.client.name = name;\n    }\n\n    // response to the request for pin\n    std::ostringstream data;\n    pt::write_xml(data, tree);\n\n    if (async_response.has_left() && async_response.left()) {\n      async_response.left()->write(data.str());\n    } else if (async_response.has_right() && async_response.right()) {\n      async_response.right()->write(data.str());\n    } else {\n      return false;\n    }\n\n    // response to the current request\n    return true;'); open('src/nvhttp.cpp', 'w').write(content)" \
+    && sed -i '/add_subdirectory(third-party\/doxyconfig docs)/d' cmake/targets/common.cmake \
+    && cmake -B build \
         -DCMAKE_BUILD_TYPE=Release \
         -DSUNSHINE_BUILD_HOME=OFF \
         -DSUNSHINE_BUILD_DOCS=OFF \
@@ -166,26 +90,22 @@ RUN git clone --depth=1 --branch=v2026.516.143833 \
         -DFFMPEG_PREPARED_BINARIES=/tmp/ffmpeg/ffmpeg \
     && cmake --build build -j$(nproc) \
     && cmake --install build \
-    && rm -rf /tmp/sunshine
+    && rm -rf /tmp/sunshine /tmp/ffmpeg
 
-# ── Crear usuario steam (video, audio, input, render) ──
+# ── Crear usuario steam ──
 RUN useradd -m -G video,audio,input,render,kvm steam \
     && echo "steam ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# ── ffmpeg (para preview MJPEG) ──
-RUN apt-get update -qq && apt-get install -y -qq \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
-
-# ── Configuración de Xorg para display virtual (modo escritorio) ──
-COPY config/xorg-dummy.conf /etc/X11/xorg.conf.d/00-dummy.conf
-
-# ── Preview web ──
-COPY docker/preview/server.py /app/preview/server.py
-COPY docker/preview/index.html /app/preview/index.html
+# ── labwc config ──
+COPY config/labwc/rc.xml /etc/labwc/rc.xml
+COPY config/labwc/environment /etc/labwc/environment
 
 # ── Config Sunshine ──
 COPY config/sunshine.conf /etc/sunshine.conf
+
+# ── Steam wrapper ──
+COPY docker/steam-wrapper.sh /usr/local/bin/steam-wrapper.sh
+RUN chmod +x /usr/local/bin/steam-wrapper.sh
 
 # ── Entrypoint ──
 COPY docker/entrypoint.sh /entrypoint.sh

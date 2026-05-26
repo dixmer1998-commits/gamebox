@@ -1,34 +1,34 @@
-# GameBox — Docker Compose (Despliegue local autónomo)
-# Permite levantar el stack en cualquier distribución Linux con GPU AMD.
+# GameBox — Docker Compose
+# Variables de entorno opcionales:
+#   GAMEBOX_INSTANCE  — nombre de instancia (default: gamebox)
+#   TZ               — zona horaria (default: America/Bogota)
+#   WAYLAND_DISPLAY  — socket Wayland (default: wayland-0)
 
 services:
   gamebox:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    image: gamebox:latest
-    container_name: gamebox
-    hostname: gamebox
+    image: gamebox:${GAMEBOX_INSTANCE:-latest}
+    container_name: gamebox${GAMEBOX_INSTANCE:+-${GAMEBOX_INSTANCE}}
+    hostname: gamebox${GAMEBOX_INSTANCE:+-${GAMEBOX_INSTANCE}}
     privileged: true
     restart: unless-stopped
     network_mode: host
     environment:
-      - INSTANCE_NAME=gamebox
-      - TZ=America/Bogota          # Cambia a tu zona horaria local
-      - DISPLAY=:10
+      - INSTANCE_NAME=${GAMEBOX_INSTANCE:-gamebox}
+      - TZ=${TZ:-America/Bogota}
+      - WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0}
       - XDG_RUNTIME_DIR=/run/user/1000
       - PULSE_SERVER=unix:/run/user/1000/pulse/native
-      - AUTO_STEAM=false           # Cambia a 'true' para iniciar Steam nativo al arrancar el contenedor
     volumes:
-      # Persistencia de juegos de Steam, configuraciones y partidas
       - gamebox-data:/home/steam
-      # Acceso a GPU y periféricos
       - /dev/dri:/dev/dri:rw
       - /dev/uinput:/dev/uinput:rw
       - /dev/input:/dev/input:ro
     devices:
-      - /dev/dri:/dev/dri
-      - /dev/uinput:/dev/uinput
+      - /dev/dri
+      - /dev/uinput
     cap_add:
       - SYS_ADMIN
       - SYS_PTRACE
@@ -37,4 +37,3 @@ services:
 
 volumes:
   gamebox-data:
-    name: gamebox-data

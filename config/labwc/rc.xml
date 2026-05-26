@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<labwc_config>
+  <core>
+    <decoration>none</decoration>
+    <gap>0</gap>
+  </core>
+
+  <theme>
+    <cornerRadius>0</cornerRadius>
+  </theme>
+
+  <fullscreenDecoration>no</fullscreenDecoration>
+</labwc_config>
